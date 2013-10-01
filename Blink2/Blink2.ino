@@ -8,6 +8,8 @@
 
 #define  CURRENT_SENSOR              0
 #define  LIQUID_CRYSTAL_DISPLAY      0
+#define  SERIAL1_MONITOR             1
+
 
 #if LIQUID_CRYSTAL_DISPLAY
 #include <FastIO.h>
@@ -49,6 +51,9 @@ int _CurrADC(void);
 void _CheckCurrADC(void);
 #endif /* #if CURRENT_SENSOR */
 
+#if SERIAL1_MONITOR
+void _CheckSerial1In(void);
+#endif /* #if SERIAL1_MONITOR */
 
 
 
@@ -63,6 +68,9 @@ Metro serialMetro = Metro(300);
 #if CURRENT_SENSOR
 Metro currMetro = Metro(50);
 #endif /* #if CURRENT_SENSOR */
+#if SERIAL1_MONITOR
+Metro serial1Metro = Metro(200);
+#endif /* #if SERIAL1_MONITOR */
 
 int tmp = 0;
 
@@ -76,6 +84,9 @@ void setup() {
    
   ///Serial.begin(9600);  // Used to type in characters
   Serial.begin(57600);  // Used to type in characters
+#if SERIAL1_MONITOR
+  Serial1.begin(115200);  // Used to type in characters
+#endif /* #if SERIAL1_MONITOR */
 
 #if LIQUID_CRYSTAL_DISPLAY  
   _LcdSetup();
@@ -93,7 +104,12 @@ void loop() {
   if (currMetro.check() == 1)
     _CheckCurrADC();
 #endif /* #if CURRENT_SENSOR */
-  
+
+#if SERIAL1_MONITOR
+  if (serial1Metro.check() == 1)
+    _CheckSerial1In();
+#endif /* #if SERIAL1_MONITOR */
+
   if (ledMetro.check() == 1)
     _LedBlink();
 
@@ -201,6 +217,32 @@ void _CheckSerialIn(void) {
     }
   }
 } 
+
+
+#if SERIAL1_MONITOR
+/* thread for serial in */
+void _CheckSerial1In(void) {
+  char gChar = 0;
+
+  // when characters arrive over the serial port...
+  if (Serial1.available())
+  {
+    // wait a bit for the entire message to arrive
+    delay(100);
+
+    // read all the available characters
+    while (Serial1.available() > 0)
+    {
+      // get char from serial
+      gChar = Serial1.read();
+      // also do the echo on serial 
+      Serial.write(gChar);
+
+    }
+  }
+} 
+#endif /* #if SERIAL1_MONITOR */
+
 
 #if CURRENT_SENSOR
 /* thread for current sensor check */
