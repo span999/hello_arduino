@@ -1,6 +1,8 @@
 /*
   Base on Blink example, we create new function for 
   liquidcrystal & current sensor.
+  LCD refer:
+  http://arduino-info.wikispaces.com/LCD-Blue-I2C
 
 */
 
@@ -8,7 +10,9 @@
 
 #define  CURRENT_SENSOR              0
 #define  LIQUID_CRYSTAL_DISPLAY      0
-#define  SERIAL1_MONITOR             1
+#define  SERIAL1_MONITOR             0
+#define  RF24_TX                     0
+#define  RF24_RX                     1
 
 
 #if LIQUID_CRYSTAL_DISPLAY
@@ -21,6 +25,13 @@
 #include <LiquidCrystal_SR2W.h>
 #include <LiquidCrystal_SR3W.h>
 #endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
+#if (RF24_TX || RF24_RX)
+#include <SPI.h> /* Comes with Arduino IDE */
+#include <RF24.h>
+#include <nRF24L01.h>
+#include <RF24_config.h>
+#endif /* #if (RF24_TX || RF24_RX) */
 
 #include <Metro.h>
 
@@ -55,7 +66,19 @@ void _CheckCurrADC(void);
 void _CheckSerial1In(void);
 #endif /* #if SERIAL1_MONITOR */
 
+#if RF24_TX
+void _Rf24TxSetup(void);
+#define  CEPIN    48
+#define  CSPIN    49
+void _CheckRf24Tx(void);
+#endif /* #if RF24_TX */
 
+#if RF24_RX
+void _CheckRf24Rx(void);
+#define  CEPIN    48
+#define  CSPIN    49
+void _CheckRf24Rx(void);
+#endif /* #if RF24_RX */
 
 
 #if LIQUID_CRYSTAL_DISPLAY
@@ -71,6 +94,22 @@ Metro currMetro = Metro(50);
 #if SERIAL1_MONITOR
 Metro serial1Metro = Metro(200);
 #endif /* #if SERIAL1_MONITOR */
+
+#if (RF24_TX || RF24_RX)
+// Set up nRF24L01 radio on SPI bus plus CEpin & CSpin
+RF24 radio(CEPIN,CSPIN);
+// Radio pipe addresses for the 2 nodes to communicate.
+///const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+const uint64_t pipes[2] = { 0xF0F0F0F0F0LL, 0xF0F0F0F0AALL };
+#endif /* #if (RF24_TX || RF24_RX) */
+
+#if RF24_TX
+Metro Rf24TxMetro = Metro(1000);
+#endif /* #if RF24_TX */
+#if RF24_RX
+Metro Rf24RxMetro = Metro(100);
+#endif /* #if RF24_RX */
+
 
 int tmp = 0;
 
@@ -91,6 +130,14 @@ void setup() {
 #if LIQUID_CRYSTAL_DISPLAY  
   _LcdSetup();
 #endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
+#if RF24_TX
+  _Rf24TxSetup();
+#endif /* #if RF24_TX */
+
+#if RF24_RX
+  _Rf24RxSetup();
+#endif /* #if RF24_RX */
   
 }
 
@@ -109,6 +156,16 @@ void loop() {
   if (serial1Metro.check() == 1)
     _CheckSerial1In();
 #endif /* #if SERIAL1_MONITOR */
+
+#if RF24_TX
+  if (Rf24TxMetro.check() == 1)
+    _CheckRf24Tx();
+#endif /* #if RF24_TX */
+
+#if RF24_RX
+  if (Rf24RxMetro.check() == 1)
+    _CheckRf24Rx();
+#endif /* #if RF24_TX */
 
   if (ledMetro.check() == 1)
     _LedBlink();
@@ -242,6 +299,139 @@ void _CheckSerial1In(void) {
   }
 } 
 #endif /* #if SERIAL1_MONITOR */
+
+
+#if RF24_TX
+void _Rf24TxSetup(void)
+{
+  //
+  // Setup and configure rf radio
+  //
+  radio.begin();
+  Serial.print("radio.begin ok...\r\n");
+
+  // optionally, increase the delay between retries & # of retries
+  radio.setRetries(15,15);
+  Serial.print("radio.setRetries ok...\r\n");
+  
+  // Become the primary transmitter (ping out)
+  radio.openWritingPipe(pipes[0]);
+  radio.openReadingPipe(1,pipes[1]);
+  Serial.print("radio.Pipe ok...\r\n");
+
+  Serial.print("radio.isPVariant=");
+  Serial.print(radio.isPVariant());
+  Serial.print("\r\n");
+  Serial.print("radio.getPALevel=");
+  Serial.print(radio.getPALevel());
+  Serial.print("\r\n");
+  radio.setPALevel(RF24_PA_HIGH);
+  Serial.print("radio.getPALevel=");
+  Serial.print(radio.getPALevel());
+  Serial.print("\r\n");
+  Serial.print("radio.getDataRate=");
+  Serial.print(radio.getDataRate());
+  Serial.print("\r\n");
+  
+  radio.printDetails();
+}
+
+void _CheckRf24Tx(void)
+{
+  // Take the time, and send it.  This will block until complete
+  unsigned long time = millis();
+  
+  // First, stop listening so we can talk.
+  radio.stopListening();
+  
+  Serial.print("Now sending ");
+  Serial.print(time);
+  bool ok = radio.write( &time, sizeof(unsigned long) );
+
+  if (ok)
+    Serial.print("=>ok...\n\r");
+  else
+    Serial.print("=>failed.\n\r");
+
+}
+#endif /* #if RF24_TX */
+
+#if RF24_RX
+static unsigned long started_waiting_at = 0;
+void _Rf24RxSetup(void)
+{
+  //
+  // Setup and configure rf radio
+  //
+  radio.begin();
+  Serial.print("radio.begin ok...\r\n");
+
+  // optionally, increase the delay between retries & # of retries
+  radio.setRetries(15,15);
+  Serial.print("radio.setRetries ok...\r\n");
+
+  Serial.print("radio.isPVariant=");
+  Serial.print(radio.isPVariant());
+  Serial.print("\r\n");
+  /* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+  Serial.print("radio.getPALevel=");
+  Serial.print(radio.getPALevel());
+  Serial.print("\r\n");
+  radio.setPALevel(RF24_PA_HIGH);
+  Serial.print("radio.getPALevel=");
+  Serial.print(radio.getPALevel());
+  Serial.print("\r\n");
+  Serial.print("radio.getDataRate=");
+  Serial.print(radio.getDataRate());
+  Serial.print("\r\n");
+
+  Serial.print("radio.startListening starts...\r\n");
+  started_waiting_at = millis();
+  // Now, continue listening
+  radio.startListening();
+}
+
+void _CheckRf24Rx(void)
+{
+  // Wait here until we get a response, or timeout (250ms)
+  ///unsigned long started_waiting_at = millis();
+  bool timeout = false;
+
+#if 0
+  while ( ! radio.available() && ! timeout )
+    if (millis() - started_waiting_at > 200 )
+      timeout = true;
+#else  
+  if (!radio.available() )
+  {
+    Serial.print(".");
+    return;
+  }
+#endif
+
+  // Describe the results
+  if ( timeout )
+  {
+    Serial.print("Failed, response timed out.\n\r");
+  }
+  else
+  {
+    // Grab the response, compare, and send to debugging spew
+    unsigned long got_time;
+    radio.read( &got_time, sizeof(unsigned long) );
+
+    // Spew it
+    Serial.print("Got response ");
+    Serial.print(got_time);
+    Serial.print(", round-trip delay: ");
+    Serial.print(millis()-got_time);
+    Serial.print("\n\r");
+  }
+  
+  started_waiting_at = millis();
+}
+#endif /* #if RF24_RX */
+
 
 
 #if CURRENT_SENSOR
