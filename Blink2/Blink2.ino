@@ -6,6 +6,10 @@
 
 #include <Wire.h>  // Comes with Arduino IDE
 
+#define  CURRENT_SENSOR              0
+#define  LIQUID_CRYSTAL_DISPLAY      0
+
+#if LIQUID_CRYSTAL_DISPLAY
 #include <FastIO.h>
 #include <I2CIO.h>
 #include <LCD.h>
@@ -14,8 +18,11 @@
 #include <LiquidCrystal_SR.h>
 #include <LiquidCrystal_SR2W.h>
 #include <LiquidCrystal_SR3W.h>
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
 
 #include <Metro.h>
+
+
 
 
 /*
@@ -27,26 +34,35 @@
 
 
 void _LedCtrl(int state);
-int _CurrADC(void);
 void _1blink(int wait);
 void _LedOn(int wait);
 void _LedOff(int wait);
 void _CheckSerialIn(void);
-void _CheckCurrADC(void);
 void _LedBlink(void);
+
+#if LIQUID_CRYSTAL_DISPLAY
 void _LcdSetup(void);
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
+#if CURRENT_SENSOR
+int _CurrADC(void);
+void _CheckCurrADC(void);
+#endif /* #if CURRENT_SENSOR */
 
 
 
 
 
-
+#if LIQUID_CRYSTAL_DISPLAY
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
 //LiquidCrystal_I2C lcd(0x27, 16, 2);  // Set the LCD I2C address
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
 
 Metro ledMetro = Metro(50);
 Metro serialMetro = Metro(300);
+#if CURRENT_SENSOR
 Metro currMetro = Metro(50);
+#endif /* #if CURRENT_SENSOR */
 
 int tmp = 0;
 
@@ -60,8 +76,10 @@ void setup() {
    
   ///Serial.begin(9600);  // Used to type in characters
   Serial.begin(57600);  // Used to type in characters
-  
+
+#if LIQUID_CRYSTAL_DISPLAY  
   _LcdSetup();
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
   
 }
 
@@ -71,8 +89,10 @@ void loop() {
   if (serialMetro.check() == 1)
     _CheckSerialIn();
 
+#if CURRENT_SENSOR
   if (currMetro.check() == 1)
     _CheckCurrADC();
+#endif /* #if CURRENT_SENSOR */
   
   if (ledMetro.check() == 1)
     _LedBlink();
@@ -80,7 +100,7 @@ void loop() {
 }
 
 
-
+#if LIQUID_CRYSTAL_DISPLAY
 /* setup for lcd panel */
 void _LcdSetup(void) {
 
@@ -112,8 +132,9 @@ void _LcdSetup(void) {
   lcd.print("Use Serial IN");
   lcd.setCursor(0,1);
   lcd.print("Type to display");  
-  
 }
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
 
 /* thread for blink */
 void _LedBlink(void) {
@@ -149,8 +170,12 @@ void _CheckSerialIn(void) {
   {
     // wait a bit for the entire message to arrive
     delay(100);
+
+#if LIQUID_CRYSTAL_DISPLAY
     // clear the screen
     lcd.clear();
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
     // read all the available characters
     while (Serial.available() > 0)
     {
@@ -159,10 +184,16 @@ void _CheckSerialIn(void) {
       // check key combination
       if( ('$' == preChar) && ('#' == gChar) )
       {
+#if LIQUID_CRYSTAL_DISPLAY
         lcd.print("escape code:");
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
+        Serial.print("escape code:");
       }
+#if LIQUID_CRYSTAL_DISPLAY
       // display each character to the LCD
       lcd.write(gChar);
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
       // also do the echo on serial
       Serial.write(gChar);
       // update the stored char
@@ -171,6 +202,7 @@ void _CheckSerialIn(void) {
   }
 } 
 
+#if CURRENT_SENSOR
 /* thread for current sensor check */
 void _CheckCurrADC(void) {
   static int iCnt = 0;
@@ -197,6 +229,7 @@ void _CheckCurrADC(void) {
     else
       rms = 342.857 * rawrms;
  
+ #if LIQUID_CRYSTAL_DISPLAY
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.print(AccADC);
@@ -206,20 +239,22 @@ void _CheckCurrADC(void) {
     lcd.print("Icurr=");
     lcd.print(rms);
     lcd.print("mA");
+ #endif /* #if LIQUID_CRYSTAL_DISPLAY */
+ 
     Serial.print("\r\n");
     Serial.print(NewADC);
     Serial.print(",");
     Serial.print(rms);
     iCnt = 0;
     AccADC = 0;
-  }  
-  
+  } 
 }
 
 /* read ADC from pin */
 int _CurrADC(void) {
   return analogRead(3);
 }
+#endif /* #if CURRENT_SENSOR */
 
 /* led pin control */
 void _LedCtrl(int state) {
