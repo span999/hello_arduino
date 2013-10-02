@@ -8,6 +8,7 @@
 
 #include <Wire.h>  // Comes with Arduino IDE
 
+#define  LED_BLINK                   0
 #define  CURRENT_SENSOR              0
 #define  LIQUID_CRYSTAL_DISPLAY      0
 #define  SERIAL1_MONITOR             0
@@ -45,13 +46,15 @@
   This example code is in the public domain.
  */
 
-
+#if LED_BLINK
 void _LedCtrl(int state);
 void _1blink(int wait);
 void _LedOn(int wait);
 void _LedOff(int wait);
-void _CheckSerialIn(void);
 void _LedBlink(void);
+#endif /* #if LED_BLINK */
+
+void _CheckSerialIn(void);
 
 #if LIQUID_CRYSTAL_DISPLAY
 void _LcdSetup(void);
@@ -86,7 +89,9 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I
 //LiquidCrystal_I2C lcd(0x27, 16, 2);  // Set the LCD I2C address
 #endif /* #if LIQUID_CRYSTAL_DISPLAY */
 
+#if LED_BLINK
 Metro ledMetro = Metro(50);
+#endif /* #if LED_BLINK */
 Metro serialMetro = Metro(300);
 #if CURRENT_SENSOR
 Metro currMetro = Metro(50);
@@ -116,13 +121,16 @@ int tmp = 0;
 
 
 // the setup routine runs once when you press reset:
-void setup() {                
+void setup() {
+#if LED_BLINK
   // initialize the digital pin as an output.
   // Pin 13 has an LED connected on most Arduino boards.
   pinMode(13, OUTPUT);
-   
+#endif /* #if LED_BLINK */
+
   ///Serial.begin(9600);  // Used to type in characters
   Serial.begin(57600);  // Used to type in characters
+  
 #if SERIAL1_MONITOR
   Serial1.begin(115200);  // Used to type in characters
 #endif /* #if SERIAL1_MONITOR */
@@ -167,8 +175,10 @@ void loop() {
     _CheckRf24Rx();
 #endif /* #if RF24_TX */
 
+#if LED_BLINK
   if (ledMetro.check() == 1)
     _LedBlink();
+#endif /* #if LED_BLINK */
 
 }
 
@@ -209,6 +219,7 @@ void _LcdSetup(void) {
 #endif /* #if LIQUID_CRYSTAL_DISPLAY */
 
 
+#if LED_BLINK
 /* thread for blink */
 void _LedBlink(void) {
   static long lCnt = 0;
@@ -232,6 +243,7 @@ void _LedBlink(void) {
   
   lCnt++;
 }
+#endif /* #if LED_BLINK */
 
 /* thread for serial in */
 void _CheckSerialIn(void) {
@@ -488,6 +500,7 @@ int _CurrADC(void) {
 }
 #endif /* #if CURRENT_SENSOR */
 
+#if LED_BLINK
 /* led pin control */
 void _LedCtrl(int state) {
   // Pin 13 has an LED connected on most Arduino boards.
@@ -511,3 +524,4 @@ void _1blink(int wait) {
   _LedOn(wait);
   _LedOff(wait);
 }
+#endif /* #if LED_BLINK */
