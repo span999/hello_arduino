@@ -1,13 +1,17 @@
 /*
   Base on Blink example, we create new function for 
-  liquidcrystal & current sensor.
-  LCD refer:
-  http://arduino-info.wikispaces.com/LCD-Blue-I2C
-
-*/
+ liquidcrystal & current sensor.
+ LCD refer:
+ http://arduino-info.wikispaces.com/LCD-Blue-I2C
+ RF24 refer:
+ http://playground.arduino.cc/InterfacingWithHardware/Nrf24L01
+ http://arduino-info.wikispaces.com/Nrf24L01-2.4GHz-HowTo
+ 
+ */
 
 #include <Wire.h>  // Comes with Arduino IDE
 
+#define  LED_BLINK                   0
 #define  CURRENT_SENSOR              0
 #define  LIQUID_CRYSTAL_DISPLAY      0
 #define  SERIAL1_MONITOR             0
@@ -31,6 +35,7 @@
 #include <RF24.h>
 #include <nRF24L01.h>
 #include <RF24_config.h>
+#include "printf.h"
 #endif /* #if (RF24_TX || RF24_RX) */
 
 #include <Metro.h>
@@ -40,18 +45,20 @@
 
 /*
   Blink
-  Turns on an LED on for one second, then off for one second, repeatedly.
+ Turns on an LED on for one second, then off for one second, repeatedly.
  
-  This example code is in the public domain.
+ This example code is in the public domain.
  */
 
-
+#if LED_BLINK
 void _LedCtrl(int state);
 void _1blink(int wait);
 void _LedOn(int wait);
 void _LedOff(int wait);
-void _CheckSerialIn(void);
 void _LedBlink(void);
+#endif /* #if LED_BLINK */
+
+void _CheckSerialIn(void);
 
 #if LIQUID_CRYSTAL_DISPLAY
 void _LcdSetup(void);
@@ -70,13 +77,23 @@ void _CheckSerial1In(void);
 void _Rf24TxSetup(void);
 #define  CEPIN    48
 #define  CSPIN    49
+/* RF24_250KBPS for 250kbs, RF24_1MBPS for 1Mbps, or RF24_2MBPS for 2Mbps */
+#define  RF24_SPEED    RF24_1MBPS
+/* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+#define  RF24_POWER    RF24_PA_HIGH
+#define  RF24_PAYLOAD  8
 void _CheckRf24Tx(void);
 #endif /* #if RF24_TX */
 
 #if RF24_RX
-void _CheckRf24Rx(void);
-#define  CEPIN    48
-#define  CSPIN    49
+void _Rf24RxSetup(void);
+#define  CEPIN    8
+#define  CSPIN    9
+/* RF24_250KBPS for 250kbs, RF24_1MBPS for 1Mbps, or RF24_2MBPS for 2Mbps */
+#define  RF24_SPEED    RF24_1MBPS
+/* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+#define  RF24_POWER    RF24_PA_HIGH
+#define  RF24_PAYLOAD  8
 void _CheckRf24Rx(void);
 #endif /* #if RF24_RX */
 
@@ -86,7 +103,9 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I
 //LiquidCrystal_I2C lcd(0x27, 16, 2);  // Set the LCD I2C address
 #endif /* #if LIQUID_CRYSTAL_DISPLAY */
 
+#if LED_BLINK
 Metro ledMetro = Metro(50);
+#endif /* #if LED_BLINK */
 Metro serialMetro = Metro(300);
 #if CURRENT_SENSOR
 Metro currMetro = Metro(50);
@@ -99,15 +118,15 @@ Metro serial1Metro = Metro(200);
 // Set up nRF24L01 radio on SPI bus plus CEpin & CSpin
 RF24 radio(CEPIN,CSPIN);
 // Radio pipe addresses for the 2 nodes to communicate.
-///const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
-const uint64_t pipes[2] = { 0xF0F0F0F0F0LL, 0xF0F0F0F0AALL };
+const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+///const uint64_t pipes[2] = { 0xF0F0F0F0F0LL, 0xF0F0F0F0AALL };
 #endif /* #if (RF24_TX || RF24_RX) */
 
 #if RF24_TX
 Metro Rf24TxMetro = Metro(1000);
 #endif /* #if RF24_TX */
 #if RF24_RX
-Metro Rf24RxMetro = Metro(100);
+Metro Rf24RxMetro = Metro(50);
 #endif /* #if RF24_RX */
 
 
@@ -116,13 +135,16 @@ int tmp = 0;
 
 
 // the setup routine runs once when you press reset:
-void setup() {                
+void setup() {
+#if LED_BLINK
   // initialize the digital pin as an output.
   // Pin 13 has an LED connected on most Arduino boards.
   pinMode(13, OUTPUT);
-   
+#endif /* #if LED_BLINK */
+
   ///Serial.begin(9600);  // Used to type in characters
   Serial.begin(57600);  // Used to type in characters
+
 #if SERIAL1_MONITOR
   Serial1.begin(115200);  // Used to type in characters
 #endif /* #if SERIAL1_MONITOR */
@@ -138,7 +160,7 @@ void setup() {
 #if RF24_RX
   _Rf24RxSetup();
 #endif /* #if RF24_RX */
-  
+
 }
 
 // the loop routine runs over and over again forever:
@@ -167,8 +189,10 @@ void loop() {
     _CheckRf24Rx();
 #endif /* #if RF24_TX */
 
+#if LED_BLINK
   if (ledMetro.check() == 1)
     _LedBlink();
+#endif /* #if LED_BLINK */
 
 }
 
@@ -179,7 +203,7 @@ void _LcdSetup(void) {
 
   lcd.begin(16,2);   // initialize the lcd for 16 chars 2 lines, turn on backlight
 
-// ------- Quick 3 blinks of backlight  -------------
+  // ------- Quick 3 blinks of backlight  -------------
   for(tmp = 0; tmp< 3; tmp++)
   {
     lcd.backlight();
@@ -189,8 +213,8 @@ void _LcdSetup(void) {
   }
   lcd.backlight(); // finish with backlight on  
 
-//-------- Write characters on the display ------------------
-// NOTE: Cursor Position: (CHAR, LINE) start at 0  
+  //-------- Write characters on the display ------------------
+  // NOTE: Cursor Position: (CHAR, LINE) start at 0  
   lcd.setCursor(0,0); //Start at character 4 on line 0
   lcd.print("Hello, world!");
   delay(500);
@@ -198,8 +222,8 @@ void _LcdSetup(void) {
   lcd.print("HI! My Arduino*");
   delay(1000);
 
-// Wait and then tell user they can start the Serial Monitor and type in characters to
-// Display. (Set Serial Monitor option to "No Line Ending")
+  // Wait and then tell user they can start the Serial Monitor and type in characters to
+  // Display. (Set Serial Monitor option to "No Line Ending")
   lcd.clear();
   lcd.setCursor(0,0); //Start at character 0 on line 0
   lcd.print("Use Serial IN");
@@ -209,12 +233,13 @@ void _LcdSetup(void) {
 #endif /* #if LIQUID_CRYSTAL_DISPLAY */
 
 
+#if LED_BLINK
 /* thread for blink */
 void _LedBlink(void) {
   static long lCnt = 0;
   static long lNext = 0;
   static int ledState = LOW;
-  
+
   if (lCnt == lNext)
   {
     if (ledState == LOW)
@@ -229,9 +254,10 @@ void _LedBlink(void) {
     }
     _LedCtrl(ledState);
   }
-  
+
   lCnt++;
 }
+#endif /* #if LED_BLINK */
 
 /* thread for serial in */
 void _CheckSerialIn(void) {
@@ -302,90 +328,160 @@ void _CheckSerial1In(void) {
 
 
 #if RF24_TX
+static bool _IsRf24TxChipReady(void)
+{
+  bool Rf24TxOn = 0;
+
+  Rf24TxOn = radio.isPVariant();
+  if(!Rf24TxOn)
+    printf("RF24 nRF24L01+ check %s!!\r\n", (Rf24TxOn)?"ok":"fail");
+
+  return Rf24TxOn;
+}
+
+static bool _Rf24TxSetPALevel(rf24_pa_dbm_e Level)
+{
+  /* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+  bool bRet = false;
+  rf24_pa_dbm_e getLev;
+
+  radio.setPALevel(Level);
+  getLev = radio.getPALevel();
+
+  if(getLev == Level)
+    bRet = true;
+  else
+    printf("radio.setPALevel=%d, but getPALevel=%d\r\n", Level, getLev);    
+
+  return bRet;
+}
+
 void _Rf24TxSetup(void)
 {
+  printf_begin();
+  printf("\n\rRF24/Tx/\n\r");
   //
   // Setup and configure rf radio
   //
   radio.begin();
-  Serial.print("radio.begin ok...\r\n");
+  printf("radio.begin set...\r\n");
 
   // optionally, increase the delay between retries & # of retries
   radio.setRetries(15,15);
-  Serial.print("radio.setRetries ok...\r\n");
-  
+  printf("radio.setRetries set...\r\n");
+
   // Become the primary transmitter (ping out)
   radio.openWritingPipe(pipes[0]);
   radio.openReadingPipe(1,pipes[1]);
-  Serial.print("radio.Pipe ok...\r\n");
+  printf("radio.Pipe set...\r\n");
 
-  Serial.print("radio.isPVariant=");
-  Serial.print(radio.isPVariant());
-  Serial.print("\r\n");
-  Serial.print("radio.getPALevel=");
-  Serial.print(radio.getPALevel());
-  Serial.print("\r\n");
-  radio.setPALevel(RF24_PA_HIGH);
-  Serial.print("radio.getPALevel=");
-  Serial.print(radio.getPALevel());
-  Serial.print("\r\n");
-  Serial.print("radio.getDataRate=");
-  Serial.print(radio.getDataRate());
-  Serial.print("\r\n");
-  
+  _IsRf24TxChipReady();
+  _Rf24TxSetPALevel(RF24_POWER);  
+  radio.setDataRate(RF24_SPEED);
+  // optionally, reduce the payload size.  seems to improve reliability
+  radio.setPayloadSize(RF24_PAYLOAD);
+  printf("radio.getPayloadSize=%d\r\n", radio.getPayloadSize());
+  printf("radio.getDataRate=%d\r\n", radio.getDataRate());
+  radio.disableCRC();
+
+  radio.printDetails();
+  if (!_IsRf24TxChipReady())
+    return;
+
   radio.printDetails();
 }
 
 void _CheckRf24Tx(void)
 {
-  // Take the time, and send it.  This will block until complete
-  unsigned long time = millis();
-  
-  // First, stop listening so we can talk.
-  radio.stopListening();
-  
-  Serial.print("Now sending ");
-  Serial.print(time);
-  bool ok = radio.write( &time, sizeof(unsigned long) );
+  unsigned long time = 0;
+  bool bOk = false;
 
-  if (ok)
-    Serial.print("=>ok...\n\r");
-  else
-    Serial.print("=>failed.\n\r");
+  if (!_IsRf24TxChipReady())
+  {
+    printf("RF24 Tx setup fail!! retry it ... ");
+    _Rf24TxSetup();
+    return;
+  }
+  // Take the time, and send it.  This will block until complete
+  time = millis();
+
+  // First, stop listening so we can talk.
+  //radio.stopListening();
+
+  bOk = radio.write( &time, sizeof(unsigned long) );
+  printf("Now sending %lu(%lu) => %s\r\n", time, millis()-time, (bOk)?"ok":"fail");
+  if(!bOk)
+  {
+    printf("Carrier already? => %s, Signal already? => %s\r\n", (radio.testCarrier())?"yes":"no", (radio.testRPD())?"yes":"no");
+    //printf("Signal already? => %s\r\n", (radio.testRPD())?"yes":"no");
+  }
 
 }
 #endif /* #if RF24_TX */
 
 #if RF24_RX
+static bool _IsRf24RxChipReady(void)
+{
+  bool Rf24RxOn = 0;
+
+  Rf24RxOn = radio.isPVariant();
+  if(!Rf24RxOn)
+    printf("RF24 nRF24L01+ check %s!!\r\n", (Rf24RxOn)?"ok":"fail");
+
+  return Rf24RxOn;
+}
+
+static bool _Rf24RxSetPALevel(rf24_pa_dbm_e Level)
+{
+  /* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+  bool bRet = false;
+  rf24_pa_dbm_e getLev;
+
+  radio.setPALevel(Level);
+  getLev = radio.getPALevel();
+
+  if(getLev == Level)
+    bRet = true;
+  else
+    printf("radio.setPALevel=%d, but getPALevel=%d\r\n", Level, getLev);    
+
+  return bRet;
+}
+
 static unsigned long started_waiting_at = 0;
 void _Rf24RxSetup(void)
 {
+  printf_begin();
+  printf("\n\rRF24/Rx/\n\r");
   //
   // Setup and configure rf radio
   //
   radio.begin();
-  Serial.print("radio.begin ok...\r\n");
+  printf("radio.begin set...\r\n");
 
   // optionally, increase the delay between retries & # of retries
   radio.setRetries(15,15);
-  Serial.print("radio.setRetries ok...\r\n");
+  printf("radio.setRetries set...\r\n");
 
-  Serial.print("radio.isPVariant=");
-  Serial.print(radio.isPVariant());
-  Serial.print("\r\n");
-  /* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
-  Serial.print("radio.getPALevel=");
-  Serial.print(radio.getPALevel());
-  Serial.print("\r\n");
-  radio.setPALevel(RF24_PA_HIGH);
-  Serial.print("radio.getPALevel=");
-  Serial.print(radio.getPALevel());
-  Serial.print("\r\n");
-  Serial.print("radio.getDataRate=");
-  Serial.print(radio.getDataRate());
-  Serial.print("\r\n");
+  // Become the primary receiver (pong back)
+  radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(1,pipes[0]);
+  printf("radio.Pipe set...\r\n");
 
-  Serial.print("radio.startListening starts...\r\n");
+  _IsRf24RxChipReady();
+  _Rf24RxSetPALevel(RF24_POWER);  
+  radio.setDataRate(RF24_SPEED);
+  // optionally, reduce the payload size.  seems to improve reliability
+  radio.setPayloadSize(RF24_PAYLOAD);
+  printf("radio.getPayloadSize=%d\r\n", radio.getPayloadSize());
+  printf("radio.getDataRate=%d\r\n", radio.getDataRate());
+  radio.disableCRC();
+
+  radio.printDetails();
+  if (!_IsRf24RxChipReady())
+    return;
+
+  printf("radio.startListening starts...\r\n");
   started_waiting_at = millis();
   // Now, continue listening
   radio.startListening();
@@ -397,6 +493,14 @@ void _CheckRf24Rx(void)
   ///unsigned long started_waiting_at = millis();
   bool timeout = false;
 
+  if (!_IsRf24RxChipReady())
+  {
+    printf("RF24 Rx setup fail!! retry it ... \r\n");
+    _Rf24RxSetup();
+    return;
+  }
+  ///radio.printDetails();
+
 #if 0
   while ( ! radio.available() && ! timeout )
     if (millis() - started_waiting_at > 200 )
@@ -404,7 +508,7 @@ void _CheckRf24Rx(void)
 #else  
   if (!radio.available() )
   {
-    Serial.print(".");
+    ///printf(".");
     return;
   }
 #endif
@@ -412,22 +516,22 @@ void _CheckRf24Rx(void)
   // Describe the results
   if ( timeout )
   {
-    Serial.print("Failed, response timed out.\n\r");
+    printf("Failed, response timed out.\n\r");
   }
   else
   {
     // Grab the response, compare, and send to debugging spew
     unsigned long got_time;
-    radio.read( &got_time, sizeof(unsigned long) );
+    bool done = false;
 
+    done = radio.read( &got_time, sizeof(unsigned long) );
+    if(!done)
+      printf("radio.read=%s\r\n", (done)?"ok!":"fail!");
     // Spew it
-    Serial.print("Got response ");
-    Serial.print(got_time);
-    Serial.print(", round-trip delay: ");
-    Serial.print(millis()-got_time);
-    Serial.print("\n\r");
+    //printf("\r\nGot response %lu, round-trip delay: %lu\r\n", got_time, millis()-got_time);
+    printf("\r\nGot response %lu, round-trip delay: %lu\r\n", got_time, millis()-started_waiting_at);
   }
-  
+
   started_waiting_at = millis();
 }
 #endif /* #if RF24_RX */
@@ -448,20 +552,20 @@ void _CheckCurrADC(void) {
   NewADC = NewADC - baseADC;
   AccADC = AccADC + (NewADC*NewADC);
   iCnt++;  
-  
+
   if (iCnt > sampleNum)
   {
     float rms = 0;
     float rawrms = 0;
-    
+
     rawrms = sqrt((float)AccADC/(float)sampleNum);
     rawrms = (rawrms * 75.7576) / 1024.0;
     if ( rawrms < 0.14 )
       rms = (float)0.0;
     else
       rms = 342.857 * rawrms;
- 
- #if LIQUID_CRYSTAL_DISPLAY
+
+#if LIQUID_CRYSTAL_DISPLAY
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.print(AccADC);
@@ -471,8 +575,8 @@ void _CheckCurrADC(void) {
     lcd.print("Icurr=");
     lcd.print(rms);
     lcd.print("mA");
- #endif /* #if LIQUID_CRYSTAL_DISPLAY */
- 
+#endif /* #if LIQUID_CRYSTAL_DISPLAY */
+
     Serial.print("\r\n");
     Serial.print(NewADC);
     Serial.print(",");
@@ -488,6 +592,7 @@ int _CurrADC(void) {
 }
 #endif /* #if CURRENT_SENSOR */
 
+#if LED_BLINK
 /* led pin control */
 void _LedCtrl(int state) {
   // Pin 13 has an LED connected on most Arduino boards.
@@ -511,3 +616,4 @@ void _1blink(int wait) {
   _LedOn(wait);
   _LedOff(wait);
 }
+#endif /* #if LED_BLINK */
