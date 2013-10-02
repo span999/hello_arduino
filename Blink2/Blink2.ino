@@ -77,9 +77,9 @@ void _CheckRf24Tx(void);
 #endif /* #if RF24_TX */
 
 #if RF24_RX
-void _CheckRf24Rx(void);
-#define  CEPIN    48
-#define  CSPIN    49
+void _Rf24RxSetup(void);
+#define  CEPIN    8
+#define  CSPIN    9
 void _CheckRf24Rx(void);
 #endif /* #if RF24_RX */
 
@@ -112,7 +112,7 @@ const uint64_t pipes[2] = { 0xF0F0F0F0F0LL, 0xF0F0F0F0AALL };
 Metro Rf24TxMetro = Metro(1000);
 #endif /* #if RF24_TX */
 #if RF24_RX
-Metro Rf24RxMetro = Metro(100);
+Metro Rf24RxMetro = Metro(1000);
 #endif /* #if RF24_RX */
 
 
@@ -314,6 +314,7 @@ void _CheckSerial1In(void) {
 
 
 #if RF24_TX
+bool Rf24TxOn = 0;
 void _Rf24TxSetup(void)
 {
   //
@@ -331,8 +332,9 @@ void _Rf24TxSetup(void)
   radio.openReadingPipe(1,pipes[1]);
   Serial.print("radio.Pipe ok...\r\n");
 
+  Rf24TxOn = radio.isPVariant();
   Serial.print("radio.isPVariant=");
-  Serial.print(radio.isPVariant());
+  Serial.print(Rf24TxOn);
   Serial.print("\r\n");
   Serial.print("radio.getPALevel=");
   Serial.print(radio.getPALevel());
@@ -350,8 +352,17 @@ void _Rf24TxSetup(void)
 
 void _CheckRf24Tx(void)
 {
+  unsigned long time = 0;
+
+  if (!Rf24TxOn)
+  {
+    Serial.print("RF24 Tx setup fail!! retry it ... ");
+    _Rf24TxSetup();
+    return;
+  }
   // Take the time, and send it.  This will block until complete
-  unsigned long time = millis();
+  time = millis();
+  
   
   // First, stop listening so we can talk.
   radio.stopListening();
@@ -369,6 +380,7 @@ void _CheckRf24Tx(void)
 #endif /* #if RF24_TX */
 
 #if RF24_RX
+bool Rf24RxOn = 0;
 static unsigned long started_waiting_at = 0;
 void _Rf24RxSetup(void)
 {
@@ -382,20 +394,30 @@ void _Rf24RxSetup(void)
   radio.setRetries(15,15);
   Serial.print("radio.setRetries ok...\r\n");
 
+  // Become the primary receiver (pong back)
+  radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(1,pipes[0]);
+  Serial.print("radio.Pipe ok...\r\n");
+
+  Rf24RxOn = radio.isPVariant();
   Serial.print("radio.isPVariant=");
-  Serial.print(radio.isPVariant());
+  Serial.print(Rf24RxOn);
   Serial.print("\r\n");
   /* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
   Serial.print("radio.getPALevel=");
   Serial.print(radio.getPALevel());
   Serial.print("\r\n");
-  radio.setPALevel(RF24_PA_HIGH);
+  //radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_LOW);
   Serial.print("radio.getPALevel=");
   Serial.print(radio.getPALevel());
   Serial.print("\r\n");
   Serial.print("radio.getDataRate=");
   Serial.print(radio.getDataRate());
   Serial.print("\r\n");
+
+  if (!Rf24RxOn)
+    return;
 
   Serial.print("radio.startListening starts...\r\n");
   started_waiting_at = millis();
@@ -409,6 +431,12 @@ void _CheckRf24Rx(void)
   ///unsigned long started_waiting_at = millis();
   bool timeout = false;
 
+  if (!Rf24RxOn)
+  {
+    Serial.print("RF24 Rx setup fail!! retry it ... \r\n");
+    _Rf24RxSetup();
+    return;
+  }
 #if 0
   while ( ! radio.available() && ! timeout )
     if (millis() - started_waiting_at > 200 )
