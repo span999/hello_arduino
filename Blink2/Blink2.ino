@@ -77,6 +77,11 @@ void _CheckSerial1In(void);
 void _Rf24TxSetup(void);
 #define  CEPIN    48
 #define  CSPIN    49
+/* RF24_250KBPS for 250kbs, RF24_1MBPS for 1Mbps, or RF24_2MBPS for 2Mbps */
+#define  RF24_SPEED    RF24_1MBPS
+/* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+#define  RF24_POWER    RF24_PA_HIGH
+#define  RF24_PAYLOAD  8
 void _CheckRf24Tx(void);
 #endif /* #if RF24_TX */
 
@@ -84,6 +89,11 @@ void _CheckRf24Tx(void);
 void _Rf24RxSetup(void);
 #define  CEPIN    8
 #define  CSPIN    9
+/* RF24_250KBPS for 250kbs, RF24_1MBPS for 1Mbps, or RF24_2MBPS for 2Mbps */
+#define  RF24_SPEED    RF24_1MBPS
+/* RF24_PA_MIN(0)=-18dBm, RF24_PA_LOW(1)=-12dBm, RF24_PA_HIGH(2)=-6dBM, and RF24_PA_MAX(3)=0dBm. */
+#define  RF24_POWER    RF24_PA_HIGH
+#define  RF24_PAYLOAD  8
 void _CheckRf24Rx(void);
 #endif /* #if RF24_RX */
 
@@ -366,11 +376,13 @@ void _Rf24TxSetup(void)
   printf("radio.Pipe set...\r\n");
 
   _IsRf24TxChipReady();
-  ///_Rf24TxSetPALevel(RF24_PA_HIGH);
-  _Rf24TxSetPALevel(RF24_PA_MAX);
-  
-  radio.setDataRate(RF24_2MBPS);
+  _Rf24TxSetPALevel(RF24_POWER);  
+  radio.setDataRate(RF24_SPEED);
+  // optionally, reduce the payload size.  seems to improve reliability
+  radio.setPayloadSize(RF24_PAYLOAD);
+  printf("radio.getPayloadSize=%d\r\n", radio.getPayloadSize());
   printf("radio.getDataRate=%d\r\n", radio.getDataRate());
+  radio.disableCRC();
 
   radio.printDetails();
   if (!_IsRf24TxChipReady())
@@ -394,11 +406,15 @@ void _CheckRf24Tx(void)
   time = millis();
 
   // First, stop listening so we can talk.
-  radio.stopListening();
+  //radio.stopListening();
 
   bOk = radio.write( &time, sizeof(unsigned long) );
-  printf("Now sending %lu => ", time);
-  printf("%s\r\n", (bOk)?"ok":"fail");
+  printf("Now sending %lu(%lu) => %s\r\n", time, millis()-time, (bOk)?"ok":"fail");
+  if(!bOk)
+  {
+    printf("Carrier already? => %s, Signal already? => %s\r\n", (radio.testCarrier())?"yes":"no", (radio.testRPD())?"yes":"no");
+    //printf("Signal already? => %s\r\n", (radio.testRPD())?"yes":"no");
+  }
 
 }
 #endif /* #if RF24_TX */
@@ -453,18 +469,19 @@ void _Rf24RxSetup(void)
   printf("radio.Pipe set...\r\n");
 
   _IsRf24RxChipReady();
-  ///_Rf24RxSetPALevel(RF24_PA_LOW);
-  ///_Rf24RxSetPALevel(RF24_PA_HIGH);
-  _Rf24RxSetPALevel(RF24_PA_MAX);
-  
-  radio.setDataRate(RF24_2MBPS);
+  _Rf24RxSetPALevel(RF24_POWER);  
+  radio.setDataRate(RF24_SPEED);
+  // optionally, reduce the payload size.  seems to improve reliability
+  radio.setPayloadSize(RF24_PAYLOAD);
+  printf("radio.getPayloadSize=%d\r\n", radio.getPayloadSize());
   printf("radio.getDataRate=%d\r\n", radio.getDataRate());
+  radio.disableCRC();
 
   radio.printDetails();
   if (!_IsRf24RxChipReady())
     return;
 
-  Serial.print("radio.startListening starts...\r\n");
+  printf("radio.startListening starts...\r\n");
   started_waiting_at = millis();
   // Now, continue listening
   radio.startListening();
